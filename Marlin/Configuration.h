@@ -38,7 +38,7 @@
 #define CONFIGURATION_H_VERSION 020008
 
 // Use EasyConfig.h file for an easy configuration of Anet ET series models
-//#define ET_EASY_CONFIG
+#define ET_EASY_CONFIG
 
 //===========================================================================
 //============================= Getting Started =============================
