@@ -120,6 +120,8 @@ void PrintJobRecovery::check() {
  * Delete the recovery file and clear the recovery data
  */
 void PrintJobRecovery::purge() {
+  card.release();                        //File access bug fix
+  card.mount();                          //File access bug fix
   init();
   card.removeJobRecoveryFile();
 }
@@ -275,6 +277,11 @@ void PrintJobRecovery::save(const bool force/*=false*/, const float zraise/*=0*/
    *  - Go to the KILL screen
    */
   void PrintJobRecovery::_outage() {
+    
+   #ifdef POWER_LOSS_PIN2 
+    OUT_WRITE(POWER_LOSS_PIN2, HIGH); //Turn on backup super capacitor
+   #endif
+    
     #if ENABLED(BACKUP_POWER_SUPPLY)
       static bool lock = false;
       if (lock) return; // No re-entrance from idle() during retract_and_lift()
@@ -300,6 +307,10 @@ void PrintJobRecovery::save(const bool force/*=false*/, const float zraise/*=0*/
       // With backup power a retract and raise can be done now
       retract_and_lift(zraise);
     #endif
+    
+   #ifdef POWER_LOSS_PIN2 
+    OUT_WRITE(POWER_LOSS_PIN2, LOW);  //Turn off backup super capacitor
+   #endif
 
     kill(GET_TEXT(MSG_OUTAGE_RECOVERY));
   }
@@ -324,6 +335,9 @@ void PrintJobRecovery::write() {
  * Resume the saved print job
  */
 void PrintJobRecovery::resume() {
+  
+  card.release();                        //File access bug fix
+  card.mount();                          //File access bug fix
 
   char cmd[MAX_CMD_SIZE+16], str_1[16], str_2[16];
 
@@ -383,26 +397,7 @@ void PrintJobRecovery::resume() {
     gcode.process_subcommands_now(cmd);
   #endif
 
-  // Recover volumetric extrusion state
-  #if DISABLED(NO_VOLUMETRICS)
-    #if HAS_MULTI_EXTRUDER
-      for (int8_t e = 0; e < EXTRUDERS; e++) {
-        sprintf_P(cmd, PSTR("M200 T%i D%s"), e, dtostrf(info.filament_size[e], 1, 3, str_1));
-        gcode.process_subcommands_now(cmd);
-      }
-      if (!info.volumetric_enabled) {
-        sprintf_P(cmd, PSTR("M200 T%i D0"), info.active_extruder);
-        gcode.process_subcommands_now(cmd);
-      }
-    #else
-      if (info.volumetric_enabled) {
-        sprintf_P(cmd, PSTR("M200 D%s"), dtostrf(info.filament_size[0], 1, 3, str_1));
-        gcode.process_subcommands_now(cmd);
-      }
-    #endif
-  #endif
-
-  #if HAS_HEATED_BED
+   #if HAS_HEATED_BED
     const int16_t bt = info.target_temperature_bed;
     if (bt) {
       // Restore the bed temperature
@@ -424,6 +419,24 @@ void PrintJobRecovery::resume() {
         gcode.process_subcommands_now(cmd);
       }
     }
+  
+  #endif // Recover volumetric extrusion state
+  #if DISABLED(NO_VOLUMETRICS)
+    #if HAS_MULTI_EXTRUDER
+      for (int8_t e = 0; e < EXTRUDERS; e++) {
+        sprintf_P(cmd, PSTR("M200 T%i D%s"), e, dtostrf(info.filament_size[e], 1, 3, str_1));
+        gcode.process_subcommands_now(cmd);
+      }
+      if (!info.volumetric_enabled) {
+        sprintf_P(cmd, PSTR("M200 T%i D0"), info.active_extruder);
+        gcode.process_subcommands_now(cmd);
+      }
+    #else
+      if (info.volumetric_enabled) {
+        sprintf_P(cmd, PSTR("M200 D%s"), dtostrf(info.filament_size[0], 1, 3, str_1));
+        gcode.process_subcommands_now(cmd);
+      }
+    #endif
   #endif
 
   // Select the previously active tool (with no_move)

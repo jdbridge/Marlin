@@ -58,6 +58,8 @@
 
 #ifndef POWER_LOSS_PIN
   #define POWER_LOSS_PIN                    PA8
+  #define POWER_LOSS_PIN2                   PA3             //Back up capacitor ON when power is off.
+
 #endif
 
 //
